@@ -6,7 +6,7 @@ import type {
   GetFileNodesResponse,
   GetImageFillsResponse,
 } from "@figma/rest-api-spec";
-import { downloadFigmaImage } from "~/utils/common.js";
+import { downloadFigmaImage, uploadFigmaImageToLequ } from "~/utils/common.js";
 import { Logger } from "~/utils/logger.js";
 import { fetchWithRetry } from "~/utils/fetch-with-retry.js";
 import yaml from "js-yaml";
@@ -95,7 +95,9 @@ export class FigmaService {
       if (!imageUrl) {
         return "";
       }
-      return downloadFigmaImage(fileName, localPath, imageUrl);
+      return localPath
+        ? downloadFigmaImage(fileName, localPath, imageUrl)
+        : uploadFigmaImageToLequ(fileName, imageUrl);
     });
     return Promise.all(promises);
   }
@@ -141,7 +143,9 @@ export class FigmaService {
       .map(({ nodeId, fileName }) => {
         const imageUrl = files[nodeId];
         if (imageUrl) {
-          return downloadFigmaImage(fileName, localPath, imageUrl);
+          return localPath
+            ? downloadFigmaImage(fileName, localPath, imageUrl)
+            : uploadFigmaImageToLequ(fileName, imageUrl);
         }
         return false;
       })

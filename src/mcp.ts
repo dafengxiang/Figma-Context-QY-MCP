@@ -207,6 +207,107 @@ function registerTools(
       }
     },
   );
+
+  // Tool to upload images
+  server.tool(
+    "upload_figma_images",
+    "Upload the images used in the Figma file to the static resource server based on the id of the image or icon node to obtain the remote image link",
+    {
+      fileKey: z.string().describe("The key of the Figma file containing the node"),
+      nodes: z
+        .object({
+          nodeId: z
+            .string()
+            .describe("The ID of the Figma image node to fetch, formatted as 1234:5678"),
+          imageRef: z
+            .string()
+            .optional()
+            .describe(
+              "If a node has an imageRef fill, you must include this variable. Leave blank when downloading Vector SVG images.",
+            ),
+          fileName: z.string().describe("The local name for saving the fetched file"),
+        })
+        .array()
+        .describe("The nodes to fetch as images"),
+      pngScale: z
+        .number()
+        .positive()
+        .optional()
+        .default(2)
+        .describe(
+          "Export scale for PNG images. Optional, defaults to 2 if not specified. Affects PNG images only.",
+        ),
+      svgOptions: z
+        .object({
+          outlineText: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Whether to outline text in SVG exports. Default is true."),
+          includeId: z
+            .boolean()
+            .optional()
+            .default(false)
+            .describe("Whether to include IDs in SVG exports. Default is false."),
+          simplifyStroke: z
+            .boolean()
+            .optional()
+            .default(true)
+            .describe("Whether to simplify strokes in SVG exports. Default is true."),
+        })
+        .optional()
+        .default({})
+        .describe("Options for SVG export"),
+    },
+    async ({ fileKey, nodes, svgOptions, pngScale }) => {
+      try {
+        const imageFills = nodes.filter(({ imageRef }) => !!imageRef) as {
+          nodeId: string;
+          imageRef: string;
+          fileName: string;
+        }[];
+        const fillDownloads = figmaService.getImageFills(fileKey, imageFills, "");
+        const renderRequests = nodes
+          .filter(({ imageRef }) => !imageRef)
+          .map(({ nodeId, fileName }) => ({
+            nodeId,
+            fileName,
+            fileType: fileName.endsWith(".svg") ? ("svg" as const) : ("png" as const),
+          }));
+        const renderDownloads = figmaService.getImages(
+          fileKey,
+          renderRequests,
+          "",
+          pngScale,
+          svgOptions,
+        );
+
+        const uploads = await Promise.all([fillDownloads, renderDownloads]).then(([f, r]) => [
+          ...f,
+          ...r,
+        ]);
+
+        // If any download fails, return false
+        const saveSuccess = !uploads.find((success) => !success);
+        return {
+          content: [
+            {
+              type: "text",
+              text: saveSuccess
+                ? `Success, ${uploads.length} images uploaded: ${uploads.join(", ")}`
+                : "Failed",
+            },
+          ],
+        };
+      } catch (error) {
+        Logger.error(`Error uploading images from file ${fileKey}:`, error);
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error uploading images: ${error}` }],
+        };
+      }
+    },
+  );
 }
 
 export { createServer };

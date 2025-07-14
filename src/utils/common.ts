@@ -1,5 +1,8 @@
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
+import FormData from "form-data";
+import { Axios } from "axios";
 
 import type { Paint, RGBA } from "@figma/rest-api-spec";
 import type {
@@ -14,6 +17,8 @@ export interface ColorValue {
   hex: CSSHexColor;
   opacity: number;
 }
+
+const axios = new Axios({});
 
 /**
  * Download Figma image and save it locally
@@ -75,7 +80,7 @@ export async function downloadFigmaImage(
       };
 
       // Resolve only when the stream is fully written
-      writer.on('finish', () => {
+      writer.on("finish", () => {
         resolve(fullPath);
       });
 
@@ -90,6 +95,44 @@ export async function downloadFigmaImage(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Error downloading image: ${errorMessage}`);
+  }
+}
+
+export async function uploadFigmaImageToLequ(fileName: string, imageUrl: string): Promise<string> {
+  try {
+    const lequUploadKey = process.env.LEQU_UPLOAD_KEY || "";
+    if (!lequUploadKey) {
+      throw new Error("LEQU_UPLOAD_KEY is not set in environment variables");
+    }
+    // Use fetch to download the image as Buffer
+    const res = await axios.get(imageUrl, { responseType: "arraybuffer" });
+    const fileBuffer = Buffer.from(res.data);
+
+    const pngBuffer = fileName.endsWith(".png")
+      ? fileBuffer
+      : await sharp(fileBuffer).png().toBuffer();
+
+    const formData = new FormData();
+    formData.append("site", "main");
+    formData.append("username", "wangfengxiang");
+    formData.append("source", JSON.stringify(["SongWukong"]));
+    formData.append("file", pngBuffer, "img.png");
+
+    const lequResponse = await axios.request<string>({
+      url: "http://imagemin.qiyi.domain/upload/single",
+      method: "post",
+      headers: {
+        ...formData.getHeaders(),
+        Authorization: lequUploadKey,
+      },
+      data: formData,
+    });
+    return lequResponse.data
+      ? JSON.parse(lequResponse.data).data.url
+      : "https://pic0.iqiyipic.com/lequ/20250714/9c1d8aa7644d4d2dabf3d0e1d6c2bef6.png";
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Error uploading image: ${errorMessage}`);
   }
 }
 
