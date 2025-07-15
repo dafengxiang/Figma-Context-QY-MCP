@@ -211,7 +211,7 @@ function registerTools(
   // Tool to upload images
   server.tool(
     "upload_figma_images",
-    "Upload the images used in the Figma file to the static resource server based on the id of the image or icon node to obtain the remote image link",
+    "Upload the images used in the Figma file to the Lequ static resource server based on the id of the image or icon node to obtain the remote image link",
     {
       fileKey: z.string().describe("The key of the Figma file containing the node"),
       nodes: z
